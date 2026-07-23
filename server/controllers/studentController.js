@@ -1,4 +1,5 @@
 const Student = require('../models/Student');
+const mysqlPool = require('../config/mysql');
 
 // GET /students
 // Fetch all students from the database with Redis Caching
@@ -41,13 +42,21 @@ const updateAttendance = async (req, res) => {
             return res.status(404).json({ message: 'Student not found' });
         }
 
-        if (req.body.attendance !== undefined) {
-            student.attendance = req.body.attendance;
-        } else {
-            student.attendance = !student.attendance;
-        }
+        const attendanceValue = req.body.attendance !== undefined ? req.body.attendance : !student.attendance;
+        student.attendance = attendanceValue;
 
         const updatedStudent = await student.save();
+
+        const attendanceDate = req.body.date || new Date().toISOString().split('T')[0];
+        const status = attendanceValue ? 'Present' : 'Absent';
+        const studentId = student.rollNumber || student._id.toString();
+
+        const mysqlQuery = `
+            INSERT INTO attendance (student_id, date, status)
+            VALUES (?, ?, ?)
+        `;
+
+        await mysqlPool.execute(mysqlQuery, [studentId, attendanceDate, status]);
 
         // 4. IMPORTANT: Invalidate (delete) the cache when data changes!
         // Because the data in DB changed, the cached list of students is now outdated.
@@ -56,7 +65,7 @@ const updateAttendance = async (req, res) => {
 
         res.json(updatedStudent);
     } catch (error) {
-        console.error(error);
+        console.error('Error updating attendance:', error);
         res.status(500).json({ message: 'Server Error updating attendance' });
     }
 };
