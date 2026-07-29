@@ -1,5 +1,4 @@
 const Student = require('../models/Student');
-const mysqlPool = require('../config/mysql');
 
 // GET /students
 // Fetch all students from the database with Redis Caching
@@ -47,17 +46,6 @@ const updateAttendance = async (req, res) => {
 
         const updatedStudent = await student.save();
 
-        const attendanceDate = req.body.date || new Date().toISOString().split('T')[0];
-        const status = attendanceValue ? 'Present' : 'Absent';
-        const studentId = student.rollNumber || student._id.toString();
-
-        const mysqlQuery = `
-            INSERT INTO attendance (student_id, date, status)
-            VALUES (?, ?, ?)
-        `;
-
-        await mysqlPool.execute(mysqlQuery, [studentId, attendanceDate, status]);
-
         // 4. IMPORTANT: Invalidate (delete) the cache when data changes!
         // Because the data in DB changed, the cached list of students is now outdated.
         await req.redisClient.del('students_cache');
@@ -70,7 +58,35 @@ const updateAttendance = async (req, res) => {
     }
 };
 
+// POST /students
+const createStudent = async (req, res) => {
+    try {
+        const { name, rollNumber, department, semester, section } = req.body;
+        
+        const newStudent = new Student({
+            name,
+            rollNumber,
+            department,
+            semester,
+            section,
+            attendance: false
+        });
+
+        const savedStudent = await newStudent.save();
+
+        // Invalidate cache
+        await req.redisClient.del('students_cache');
+        console.log('Cache invalidated due to new student added.');
+
+        res.status(201).json(savedStudent);
+    } catch (error) {
+        console.error('Error creating student:', error);
+        res.status(500).json({ message: 'Server Error creating student' });
+    }
+};
+
 module.exports = {
     getStudents,
-    updateAttendance
+    updateAttendance,
+    createStudent
 };

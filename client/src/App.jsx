@@ -6,6 +6,16 @@ function App() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  const [newStudent, setNewStudent] = useState({
+    name: '',
+    rollNumber: '',
+    department: '',
+    semester: '',
+    section: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   // Function to fetch students from the backend
   const fetchStudents = async () => {
@@ -47,10 +57,52 @@ function App() {
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewStudent(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await axios.post('http://localhost:5000/students', newStudent);
+      setNewStudent({
+        name: '',
+        rollNumber: '',
+        department: '',
+        semester: '',
+        section: ''
+      });
+      fetchStudents(); // Refresh the list
+    } catch (err) {
+      console.error('Error adding student:', err);
+      setSubmitError('Failed to add student. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="container">
       <h1>Student Attendance</h1>
       
+      <div className="add-student-section">
+        <h2>Add New Student</h2>
+        {submitError && <p className="error">{submitError}</p>}
+        <form onSubmit={handleAddStudent} className="add-student-form">
+          <input type="text" name="name" placeholder="Name" value={newStudent.name} onChange={handleInputChange} required />
+          <input type="text" name="rollNumber" placeholder="Roll Number" value={newStudent.rollNumber} onChange={handleInputChange} required />
+          <input type="text" name="department" placeholder="Department" value={newStudent.department} onChange={handleInputChange} required />
+          <input type="number" name="semester" placeholder="Semester" value={newStudent.semester} onChange={handleInputChange} required />
+          <input type="text" name="section" placeholder="Section" value={newStudent.section} onChange={handleInputChange} required />
+          <button type="submit" disabled={submitting}>
+            {submitting ? 'Adding...' : 'Add Student'}
+          </button>
+        </form>
+      </div>
+
       {loading && <p>Loading students...</p>}
       {error && <p className="error">{error}</p>}
       
