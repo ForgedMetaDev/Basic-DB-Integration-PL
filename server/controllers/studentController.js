@@ -1,11 +1,30 @@
 const Student = require('../models/Student');
+const {
+    cacheKeys,
+    getCachedData,
+    setCachedData,
+    invalidateStudentsCache,
+} = require('../config/redis');
 
 // GET /students
-// Fetch all students from the database
 const getStudents = async (req, res) => {
     try {
-        const students = await Student.find({});
-        res.json(students);
+        const cachedStudents = await getCachedData(cacheKeys.students);
+
+        if (cachedStudents) {
+            return res.json({
+                students: cachedStudents,
+                source: 'redis-cache',
+            });
+        }
+
+        const students = await Student.find({}).lean();
+        await setCachedData(cacheKeys.students, students, 60);
+
+        res.json({
+            students,
+            source: 'mongodb',
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error fetching students' });
@@ -16,7 +35,7 @@ const getStudents = async (req, res) => {
 const updateAttendance = async (req, res) => {
     try {
         const student = await Student.findById(req.params.id);
-        
+
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
         }
@@ -25,6 +44,7 @@ const updateAttendance = async (req, res) => {
         student.attendance = attendanceValue;
 
         const updatedStudent = await student.save();
+        await invalidateStudentsCache();
 
         res.json(updatedStudent);
     } catch (error) {
@@ -37,17 +57,18 @@ const updateAttendance = async (req, res) => {
 const createStudent = async (req, res) => {
     try {
         const { name, rollNumber, department, semester, section } = req.body;
-        
+
         const newStudent = new Student({
             name,
             rollNumber,
             department,
             semester,
             section,
-            attendance: false
+            attendance: false,
         });
 
         const savedStudent = await newStudent.save();
+        await invalidateStudentsCache();
 
         res.status(201).json(savedStudent);
     } catch (error) {
@@ -59,5 +80,5 @@ const createStudent = async (req, res) => {
 module.exports = {
     getStudents,
     updateAttendance,
-    createStudent
+    createStudent,
 };

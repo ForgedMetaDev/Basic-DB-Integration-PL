@@ -20,9 +20,10 @@ function App() {
   // Function to fetch students from the backend
   const fetchStudents = async () => {
     try {
-      // Assuming backend runs on localhost:5000
       const response = await axios.get('http://localhost:5000/students');
-      setStudents(response.data);
+      const payload = response.data;
+      const studentList = Array.isArray(payload) ? payload : payload.students || [];
+      setStudents(studentList);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching students:', err);
